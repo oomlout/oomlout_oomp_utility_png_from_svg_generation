@@ -1,120 +1,124 @@
-import oom_kicad
-import oom_markdown
 import os
+import yaml
+import glob
 import copy
-import scad
+import jinja2    
 
-#process
-#  locations set in working_parts.ods 
-#  export to working_parts.csv
-#  put components on the right side of the board
-#  run this script
+
+folder_configuration = "configuration"
+folder_configuration = os.path.join(os.path.dirname(__file__), folder_configuration)
+file_configuration = os.path.join(folder_configuration, "configuration.yaml")
+#import templates
+with open(file_configuration, 'r') as stream:
+    try:
+        configuration = yaml.load(stream, Loader=yaml.FullLoader)
+    except yaml.YAMLError as exc:   
+        print(exc)
+
+
 
 def main(**kwargs):
-    #place_parts(**kwargs)
-    #make_readme(**kwargs)
-    scad.make_scad(**kwargs)
+    overwrite = kwargs.get("overwrite", False)
+    import concurrent.futures
+    workers  = 4
+    if overwrite:
+        workers = 1
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for _ in range(workers):
+            executor.submit(main_thread, **kwargs)
+
+def main_thread(**kwargs):
+
+    test_for_inkscape()
     
+    
+    folder = kwargs.get("folder", f"os.path.dirname(__file__)/parts")
+    folder = folder.replace("\\","/")
+    
+    kwargs["file_template_list"] = configuration
+    print(f"oomlout_oomp_utility_readme_generation for folder: {folder}")
+    create_recursive(**kwargs)
+    
+def create_recursive(**kwargs):
+    folder = kwargs.get("folder", os.path.dirname(__file__))
+    kwargs["folder"] = folder
+    folder_template_absolute = kwargs.get("folder_template_absolute", "")
+    kwargs["folder_template_absolute"] = folder_template_absolute
+    filter = kwargs.get("filter", "")
+    for item in os.listdir(folder):
+        if filter in item:
+            item_absolute = os.path.join(folder, item)
+            if os.path.isdir(item_absolute):
+                #if working.yaml exists in the folder
+                if os.path.exists(os.path.join(item_absolute, "working.yaml")):
+                    kwargs["directory"] = item_absolute
+                    create(**kwargs)
+
+def create(**kwargs):
+    directory = kwargs.get("directory", os.getcwd())    
+    kwargs["directory"] = directory
+    file_template_list = kwargs.get("file_template_list", configuration)
+    kwargs["file_template_list"] = file_template_list
+    generate(**kwargs)
     
 
-def make_readme(**kwargs):
-    os.system("generate_resolution.bat")
-    oom_markdown.generate_readme_project(**kwargs)
-    #oom_markdown.generate_readme_teardown(**kwargs)
-    
-def make_scad(**kwargs):
-    import opsc
-    import oobb 
-    import oobb_base
-
-    kwargs["save_type"] = "none"
-    #kwargs["save_type"] = "all"
-    kwargs["size"] = "oobb"
-    kwargs["type"] = "oomlout_bolt_tool_funnel"
-    kwargs["width"] = 3
-    kwargs["height"] = 5
-    kwargs["thickness"] = 6
-     # default sets
-    width = kwargs.get("width", 3)
-    height = kwargs.get("height", 5)
-    thickness = kwargs.get("thickness", 3)
-    size = kwargs.get("size", "oobb")
-    pos = kwargs.get("pos", [0, 0, 0])
-    # extra sets
-    holes = kwargs.get("holes", True)
-    both_holes = kwargs.get("both_holes", True)    
-    kwargs["pos"] = pos
-    
-        # get the default thing
-    thing = oobb_base.get_default_thing(**kwargs)
-    th = thing["components"]
-    kwargs.pop("size","")
-
-    th.append(oobb_base.get_comment("plate main","p"))
-    # add plate
-    p3 = copy.deepcopy(kwargs)
-    p3["type"] = "p"   
-    p3["shape"] = f"{size}_plate"
-    p3["width"] = width
-    p3["height"] = height  
-    p3["depth"] = thickness
-    p3["pos"] = pos
-    #p3["m"] = ""  
-    oobb_base.append_full(thing,**p3)      
-    #th.append(oobb_base.oobb_easy(**p3))
-    
-    # add holes
-    if holes:
-        th.append(oobb_base.get_comment("holes main","n"))
-        p3 = copy.deepcopy(kwargs)
-        p3["type"] = "n"
-        p3["shape"] = f"{size}_holes"
-        p3["width"] = width
-        p3["height"] = height
-        p3["pos"] = pos
-        p3["both_holes"] = both_holes
-        #p3["m"] = ""
-        oobb_base.append_full(thing,**p3)      
-        #th.extend(oobb_base.oobb_easy(**p3))   
-        
-        
-        save_type = kwargs.get("save_type", "all")
-        overwrite = True
-        modes = ["3dpr", "laser", "true"]
-        for mode in modes:
-            depth = thing.get(
-                "depth_mm", thing.get("thickness_mm", 3))
-            height = thing.get("height_mm", 100)
-            layers = depth / 3
-            tilediff = height + 10
-            start = 1.5
-            if layers != 1:
-                start = 1.5 - (layers / 2)*3
-            if "bunting" in thing:
-                start = 0.5
-            opsc.opsc_make_object(f'scad_output/{thing["id"]}/{mode}.scad', thing["components"], mode=mode, save_type=save_type, overwrite=overwrite, layers=layers, tilediff=tilediff, start=start)
+def generate(**kwargs):
+    import os
+    directory = kwargs.get("directory",os.getcwd())   
+    overwrite = kwargs.get("overwrite", False) 
+    files = os.listdir(directory)
+    for file in files:
+        if file.endswith(".svg"):
+            file_input = os.path.join(directory, file)
+            file_output = file_input.replace(".svg", ".png")
+            if overwrite or not os.path.exists(file_output):
+                #if running on windows
+                if os.name == 'nt':
+                    string_exec = f"inkscape --export-type=png --export-filename={file_output} {file_input}"
+                else:
+                    #use the older 0.92 version of the export command
+                    #string_exec = f"echo -e '{file_input}\nexport pdf {file_output}\nquit' | inkscape --shell"
+                    string_exec = ""
+                #print(string_exec)
+                print(f"Converting {file_input} to {file_output}")
+                os.system(string_exec)
+            else:
+                print(f"Skipping {file_input} to {file_output}")
             
- 
+            
+            pass
 
-
-#take component positions from working_parts.csv and place them in working.kicad_pcb
-def place_parts(**kwargs):
-    board_file = "kicad/current_version/working/working.kicad_pcb"
-    parts_file = "working_parts.csv"
-    #load csv file
-    import csv
-    with open(parts_file, 'r') as f:
-        reader = csv.DictReader(f)
-        parts = [row for row in reader]
-
-
-    
-    oom_kicad.kicad_set_components(board_file=board_file, parts=parts, corel_pos=True, **kwargs)
-
-
-
-
+def test_for_inkscape():
+    import subprocess
+    string_exec = f"inkscape --version"
+    #store the output to a string
+    try:
+        subprocess.check_output(string_exec, shell=True)
+    except:
+        string_exec = f"sudo apt-get update"
+        os.system(string_exec)
+        string_exec = f"sudo apt-get install -y inkscape"
+        os.system(string_exec)
+        #test again
+        string_exec = f"inkscape --version"
+        try:
+            output = subprocess.check_output(string_exec, shell=True)
+        except:        
+            print("inkscape not found, please install inkscape and add to path")
+            exit()
+    pass
 
 
 if __name__ == '__main__':
-    main()
+    #folder is the path it was launched from
+    
+    kwargs = {}
+    folder = os.path.dirname(__file__)
+    #folder = "C:/gh/oomlout_oomp_builder/parts"
+    folder = "C:/gh/oomlout_oomp_part_generation_version_1/parts"
+    kwargs["folder"] = folder
+    overwrite = False
+    kwargs["overwrite"] = overwrite
+    #run main using 4 threads
+    
+    

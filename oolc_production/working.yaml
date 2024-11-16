@@ -1,6 +1,0 @@
-project_id: oomlout_oomp_utility_png_from_svg_generation
-project_name: Oomlout Oomp Utility Png From Svg Generation
-project_repo: https://github.com/oomlout/oomlout_oomp_utility_png_from_svg_generation
-production_format:
-  oolc_1:
-    file_location: source_files/oolc_1.cdr

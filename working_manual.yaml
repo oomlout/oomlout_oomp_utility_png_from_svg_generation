@@ -1,4 +1,8 @@
-id: oomlout_oomp_utility_png_from_svg_generation
-name: Oomlout Oomp Utility Png From Svg Generation
-description: Oomlout Oomp Utility Png From Svg Generation
-readme_manual: ''
+id: oomlout_oomp_utility_pdf_from_svg_generation
+name: "OOMP Utility PDF From SVG Generation"
+description: "This is part of OOMP the Oopen Organization Method For Parts. For more details: https://github.com/oomlout/oomp_base  "
+readme_manual: |
+  ## What it does
+  This utility generates a pdf file for every svg file for a given OOMP part. It is designed to be run from the command line from within a parts/ directory or an individual part.
+  ## Usage
+  * run utility_oomp_pdf_from_svg_generation.py from within an oomp parts/ folder or an individual part folder
